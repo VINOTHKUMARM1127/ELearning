@@ -75,17 +75,42 @@ export const checkout = TryCatch(async (req, res) => {
     });
   }
 
-  const options = {
-    amount: Number(course.price * 100),
-    currency: "INR",
-  };
+  if (course.price <= 0) {
+    user.subscription.push(course._id);
 
-  const order = await instance.orders.create(options);
+    await Progress.create({
+      course: course._id,
+      completedLectures: [],
+      user: req.user._id,
+    });
 
-  res.status(201).json({
-    order,
-    course,
-  });
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "You have been enrolled in this free course!",
+      course,
+    });
+  }
+
+  // **Handle Paid Course via Razorpay**
+  try {
+    const options = {
+      amount: Number(course.price * 100), // Convert to paise
+      currency: "INR",
+    };
+
+    const order = await instance.orders.create(options);
+
+    res.status(201).json({
+      success: true,
+      order,
+      course,
+    });
+  } catch (error) {
+    console.error("Razorpay Order Error:", error);
+    res.status(500).json({ success: false, message: "Payment initiation failed" });
+  }
 });
 
 export const paymentVerification = TryCatch(async (req, res) => {
